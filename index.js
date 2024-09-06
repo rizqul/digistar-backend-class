@@ -1,61 +1,118 @@
-const http = require("http");
-const url = require("url");
-const { parse } = require("querystring");
 const express = require("express");
 const bodyParser = require("body-parser");
-
-// const server = http.createServer((req, res) => {
-//   res.statusCode = 200;
-
-//   const parsedUrl = url.parse(req.url, true);
-//   res.setHeader("Content-Type", "application/json");
-//   res.end(JSON.stringify(parsedUrl));
-// });
+const db = require("./database/db");
+const query = require("./database/query");
 
 const app = express();
 app.use(bodyParser.json());
 
-let users = [];
+db.connectDB();
 
+// Route to handle user registration.
 app.post("/digistar/register", (req, res) => {
-  const user = {
-    id: req.body.id,
-    name: req.body.name,
-  };
-
-  users.push(user);
-
   res.setHeader("Content-Type", "application/json");
-  res.status(200).send("User Added");
+
+  if (!req.body.name || !req.body.age) {
+    return res.status(400).json({ message: "Insert the required field" });
+  }
+
+  query
+    .createUser(req.body)
+    .then((user) => {
+      return res.status(200).json({ message: `User ${user.name} Created` });
+    })
+    .catch((error) => {
+      return res
+        .status(500)
+        .json({ message: `Internal server error : ${error}` });
+    });
 });
 
+// Route to handle fetching all users.
 app.get("/digistar/users", (req, res) => {
   res.setHeader("Content-Type", "application/json");
-  res.status(200).send(users);
+  query
+    .getAllUsers()
+    .then((users) => {
+      return res.status(200).json(users);
+    })
+    .catch((error) => {
+      return res
+        .status(500)
+        .json({ message: `Internal server error : ${error}` });
+    });
 });
 
-app.get("/digistar/users", (req, res) => {
-  const query = req.query.name;
-  const user = users.find(({ name }) => name == query);
-
+// Route to find users by name.
+app.get("/digistar/users/search", (req, res) => {
+  const searchedName = req.query.name;
   res.setHeader("Content-Type", "application/json");
-  res.status(200).send(user);
+
+  if (!searchedName) {
+    return res.status(400).json({ message: "Please input the name" });
+  }
+
+  query
+    .searchUserByName(searchedName)
+    .then((user) => {
+      return res.status(200).json(user);
+    })
+    .catch((error) => {
+      return res
+        .status(500)
+        .json({ message: `Internal server error : ${error}` });
+    });
 });
 
+// Route to update users by id.
 app.put("/digistar/users/:id", (req, res) => {
-  const user = users.find(({ id }) => id == req.params.id);
-  users[user.id] = req.body;
+  const id = req.params.id;
 
   res.setHeader("Content-Type", "application/json");
-  res.status(200).send("User Updated");
+
+  if (!req.body.name || !req.body.age) {
+    return res.status(400).json({ message: "Insert the required field" });
+  }
+
+  query
+    .updateUser(id, req.body)
+    .then((user) => {
+      if (user) {
+        return res.status(200).json({ message: `User ${user.name} updated` });
+      } else {
+        return res.status(400).json({ message: `User not found` });
+      }
+    })
+    .catch((error) => {
+      return res
+        .status(500)
+        .json({ message: `Internal server error : ${error}` });
+    });
 });
 
+// Route to delete users by id.
 app.delete("/digistar/users/:id", (req, res) => {
   const id = req.params.id;
-  users = users.filter((user) => user[id] !== id);
-
   res.setHeader("Content-Type", "application/json");
-  res.status(200).send("User Deleted");
+
+  if (!req.body.name || !req.body.age) {
+    return res.status(400).json({ message: "Insert the required field" });
+  }
+
+  query
+    .deleteUser(id)
+    .then((user) => {
+      if (user) {
+        return res.status(200).json({ message: `User ${user.name} deleted` });
+      } else {
+        return res.status(400).json({ message: `User not found` });
+      }
+    })
+    .catch((error) => {
+      return res
+        .status(500)
+        .json({ message: `Internal server error : ${error}` });
+    });
 });
 
 app.listen(3000, "localhost", () => {
