@@ -27,6 +27,10 @@ const searchUserByName = async (name) => {
   return await users.find({ name: name });
 };
 
+const searchUserByUserName = async (username) => {
+  return await users.findOne({ username: username });
+};
+
 module.exports = {
   getAllUsers,
   createUser,
@@ -34,4 +38,5 @@ module.exports = {
   updateUser,
   deleteUser,
   searchUserByName,
+  searchUserByUserName,
 };

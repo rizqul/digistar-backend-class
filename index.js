@@ -1,7 +1,11 @@
 const express = require("express");
 const bodyParser = require("body-parser");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+
 const db = require("./database/db");
 const query = require("./database/query");
+const middleware = require("./middleware/jwt");
 
 const app = express();
 app.use(bodyParser.json());
@@ -9,12 +13,17 @@ app.use(bodyParser.json());
 db.connectDB();
 
 // Route to handle user registration.
-app.post("/digistar/register", (req, res) => {
+app.post("/digistar/register", async (req, res) => {
   res.setHeader("Content-Type", "application/json");
 
-  if (!req.body.name || !req.body.age) {
+  const user = req.body;
+
+  if (!user.name || !user.age || !user.username || !user.password) {
     return res.status(400).json({ message: "Insert the required field" });
   }
+
+  const hashPassword = await bcrypt.hash(user.password, 10);
+  user.password = hashPassword;
 
   query
     .createUser(req.body)
@@ -28,8 +37,39 @@ app.post("/digistar/register", (req, res) => {
     });
 });
 
+async function login(username, password) {
+  const user = await query.searchUserByUserName(username);
+
+  if (!user) {
+    return { message: "User not found" };
+  }
+
+  const validation = await bcrypt.compare(password, user.password);
+
+  if (!validation) {
+    return { message: "Invalid username and password" };
+  }
+
+  const key = "secret";
+  const token = jwt.sign({ id: user.id }, key, { expiresIn: "1h" });
+
+  return { token: token, user: user };
+}
+
+//Route to handle login
+app.post("/digistar/login", async (req, res) => {
+  const user = req.body;
+  const validUser = await login(user.username, user.password);
+
+  if (!validUser) {
+    return res.status(400).json(validUser);
+  }
+
+  res.status(200).json(validUser);
+});
+
 // Route to handle fetching all users.
-app.get("/digistar/users", (req, res) => {
+app.get("/digistar/users", middleware.verifyToken, (req, res) => {
   res.setHeader("Content-Type", "application/json");
   query
     .getAllUsers()
@@ -94,10 +134,6 @@ app.put("/digistar/users/:id", (req, res) => {
 app.delete("/digistar/users/:id", (req, res) => {
   const id = req.params.id;
   res.setHeader("Content-Type", "application/json");
-
-  if (!req.body.name || !req.body.age) {
-    return res.status(400).json({ message: "Insert the required field" });
-  }
 
   query
     .deleteUser(id)
